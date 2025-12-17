@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Download, Play, Layers, Image as ImageIcon, RefreshCw, Settings, Search, AlertCircle, AlertTriangle, CreditCard, ShoppingBag, Upload } from 'lucide-react';
+import { Download, Play, Layers, Image as ImageIcon, RefreshCw, Settings, Search, AlertCircle, AlertTriangle, CreditCard, ShoppingBag, Upload, FileImage, Tag, RotateCcw } from 'lucide-react';
 
 // --- Types ---
 
@@ -21,13 +21,15 @@ interface Product {
 // --- Constants & Styles ---
 
 const COLORS = {
-  pardoBlue: '#1e90ff', // Updated to #1e90ff
+  pardoBlue: '#1e90ff', 
   orangeBadge: '#FF6600',
   debitBadge: '#0082D1', 
   pickupBadge: '#0082D1', 
   priceColor: '#FF6600',
-  frameText: '#FFFF00'
 };
+
+// Default overlay file provided by user
+const DEFAULT_OVERLAY = 'marco-ads-meta.png';
 
 const DEMO_PRODUCT: Product = {
   id: 'demo-lg-86',
@@ -214,11 +216,10 @@ function App() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Configuration State
-  const [frameColor, setFrameColor] = useState(COLORS.pardoBlue);
   const [showPrice, setShowPrice] = useState(true);
-  const [showBadges, setShowBadges] = useState(true);
-  const [customBankText, setCustomBankText] = useState('10% OFF 1 PAGO Débito');
-  const [customLogo, setCustomLogo] = useState<string | null>(null);
+  const [showBadges, setShowBadges] = useState(true); // Auto badges (installments/pickup)
+  const [showBankBadge, setShowBankBadge] = useState(true); // Bank promo badge
+  const [customOverlay, setCustomOverlay] = useState<string | null>(DEFAULT_OVERLAY); // Start with Pardo Frame
 
   // --- Data Fetching Logic (VTEX) ---
   
@@ -314,17 +315,21 @@ function App() {
     }
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOverlayUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-            setCustomLogo(event.target.result as string);
+            setCustomOverlay(event.target.result as string);
         }
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const restoreDefaultOverlay = () => {
+    setCustomOverlay(DEFAULT_OVERLAY);
   };
 
   // --- Image Generation Logic ---
@@ -343,8 +348,9 @@ function App() {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // Frame Config
-    const frameTop = 130;
+    // Layout Config
+    // We keep these margins so the product doesn't overlap the header/footer of the overlay
+    const frameTop = 130; 
     const frameBottom = 130;
     const safeAreaTop = frameTop;
     const safeAreaHeight = HEIGHT - frameTop - frameBottom;
@@ -364,7 +370,11 @@ function App() {
       
       // Center vertically in the top portion of safe area
       const x = (WIDTH - drawW) / 2;
-      const y = safeAreaTop + 40; // Small top padding inside safe area
+      let y = safeAreaTop + 40; // Small top padding inside safe area
+
+      if (!showPrice) {
+        y += 50; // Offset increased to 50px as requested
+      }
 
       ctx.drawImage(img, x, y, drawW, drawH);
 
@@ -378,29 +388,29 @@ function App() {
     }
 
     // 3. Badges (Cucardas)
+    const badgeY = safeAreaTop + 20;
+    let leftBadgeY = badgeY;
+    let rightBadgeY = badgeY;
+
+    // --- Bank / Promo Badge (Left) - INDEPENDENT ---
+    if (showBankBadge) {
+        ctx.fillStyle = COLORS.debitBadge; 
+        roundRect(ctx, 30, leftBadgeY, 280, 80, 10);
+        ctx.fill();
+        
+        ctx.fillStyle = 'white';
+        ctx.font = '900 36px Roboto'; 
+        ctx.textAlign = 'center';
+        ctx.fillText("10% OFF", 30 + 140, leftBadgeY + 40);
+        
+        ctx.font = '400 18px Roboto';
+        ctx.fillText("1 PAGO Débito", 30 + 140, leftBadgeY + 65);
+        
+        leftBadgeY += 90;
+    }
+
+    // --- Other Badges (Right) - CONTROLLED BY "Mostrar Cucardas" ---
     if (showBadges) {
-        const badgeY = safeAreaTop + 20;
-        let leftBadgeY = badgeY;
-        let rightBadgeY = badgeY;
-
-        // --- Bank / Promo Badge (Left) ---
-        const promoText = product.bankPromo || customBankText;
-        if (promoText) {
-            ctx.fillStyle = COLORS.debitBadge; // Using Updated Celeste
-            roundRect(ctx, 30, leftBadgeY, 280, 80, 10);
-            ctx.fill();
-            
-            ctx.fillStyle = 'white';
-            ctx.font = '900 36px Roboto'; 
-            ctx.textAlign = 'center';
-            ctx.fillText("10% OFF", 30 + 140, leftBadgeY + 40);
-            
-            ctx.font = '400 18px Roboto';
-            ctx.fillText("1 PAGO Débito", 30 + 140, leftBadgeY + 65);
-            
-            leftBadgeY += 90;
-        }
-
         // --- Installments Badge (Right) ---
         if (product.installments > 1) {
              const badgeW = 260;
@@ -430,7 +440,7 @@ function App() {
             const badgeH = 40;
             const badgeX = WIDTH - badgeW - 30;
             
-            ctx.fillStyle = COLORS.pickupBadge; // Using Updated Celeste
+            ctx.fillStyle = COLORS.pickupBadge;
             roundRect(ctx, badgeX, rightBadgeY, badgeW, badgeH, 20); 
             ctx.fill();
             
@@ -446,75 +456,52 @@ function App() {
     if (showPrice) {
         const priceY = HEIGHT - frameBottom - 30;
         
-        ctx.fillStyle = COLORS.priceColor;
-        ctx.font = '900 110px Roboto';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(formatPrice(product.price), WIDTH / 2, priceY);
+        ctx.lineJoin = 'round';
+        ctx.miterLimit = 2;
         
         if (product.installments > 1) {
             const installmentVal = product.price / product.installments;
             const instText = `Hasta ${product.installments}x ${formatPrice(installmentVal)} cuotas sin interés`;
             
-            ctx.fillStyle = COLORS.orangeBadge;
             ctx.font = '700 32px Roboto';
-            ctx.textBaseline = 'bottom';
+            
+            // White Glow (Stroke)
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 8;
+            ctx.strokeText(instText, WIDTH / 2, priceY - 110);
+            
+            // Text Fill
+            ctx.fillStyle = COLORS.orangeBadge;
             ctx.fillText(instText, WIDTH / 2, priceY - 110);
         }
+
+        // Main Price
+        ctx.font = '900 110px Roboto';
+        
+        // White Glow (Stroke)
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 16;
+        ctx.strokeText(formatPrice(product.price), WIDTH / 2, priceY);
+        
+        // Text Fill
+        ctx.fillStyle = COLORS.priceColor;
+        ctx.fillText(formatPrice(product.price), WIDTH / 2, priceY);
     }
 
-    // 5. Frame (Overlay)
-    ctx.fillStyle = frameColor;
-    ctx.fillRect(0, 0, WIDTH, frameTop); // Top Bar
-    ctx.fillRect(0, HEIGHT - frameBottom, WIDTH, frameBottom); // Bottom Bar
-    ctx.fillRect(0, 0, 30, HEIGHT); // Left
-    ctx.fillRect(WIDTH - 30, 0, 30, HEIGHT); // Right
-
-    // 6. Logo Image in Top Frame
-    try {
-        const defaultLogoUrl = "https://pardo.vtexassets.com/assets/vtex.file-manager-graphql/images/3f283204-766e-4720-b472-763321590430___06d648083812739420076294d1887019.svg";
-        const logoToUse = customLogo || defaultLogoUrl;
-
-        const logoImg = await loadImage(logoToUse);
-
-        if (logoImg.width !== 0 && logoImg.height !== 0) {
-            // Aspect ratio math
-            const maxLogoH = frameTop * 0.7; // 70% of frame height
-            const maxLogoW = WIDTH * 0.6; // Max 60% of width
-            
-            let drawH = maxLogoH;
-            let drawW = (logoImg.width / logoImg.height) * drawH;
-            
-            if (drawW > maxLogoW) {
-                drawW = maxLogoW;
-                drawH = (logoImg.height / logoImg.width) * drawW;
-            }
-
-            const logoX = (WIDTH - drawW) / 2;
-            const logoY = (frameTop - drawH) / 2;
-            
-            ctx.drawImage(logoImg, logoX, logoY, drawW, drawH);
-        } else {
-             throw new Error("Logo dimensions invalid");
+    // 5. Custom Overlay (The Frame)
+    // Drawn last to appear on top
+    if (customOverlay) {
+        try {
+            const overlayImg = await loadImage(customOverlay);
+            ctx.drawImage(overlayImg, 0, 0, WIDTH, HEIGHT);
+        } catch (e) {
+            console.error("Error loading overlay", e);
         }
-    } catch (e) {
-        // Fallback only if image totally fails
-        ctx.fillStyle = COLORS.frameText;
-        ctx.font = '900 80px Roboto';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText("PARDO", WIDTH / 2, frameTop / 2);
     }
-    
-    // Bottom Bar Text
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '700 30px Roboto';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText("WWW.PARDO.COM.AR", WIDTH / 2, HEIGHT - (frameBottom / 2));
 
-
-    // 7. Download Trigger
+    // 6. Download Trigger
     if (download) {
       const link = document.createElement('a');
       link.download = `pardo_${product.sku}.jpg`;
@@ -543,7 +530,7 @@ function App() {
     if (canvasRef.current && selectedProduct) {
       drawProduct(selectedProduct, canvasRef.current);
     }
-  }, [selectedProduct, frameColor, showPrice, showBadges, customBankText, customLogo]);
+  }, [selectedProduct, showPrice, showBadges, showBankBadge, customOverlay]);
 
   // --- Batch Processing ---
 
@@ -679,15 +666,17 @@ function App() {
                 <Settings size={18} /> Personalización
               </h3>
               
+              {/* Option 1: General Badges */}
               <div style={styles.badgeOption}>
                    <input type="checkbox" checked={showBadges} onChange={e => setShowBadges(e.target.checked)} />
                    <div style={{flex:1}}>
-                      <strong>Mostrar Cucardas</strong>
-                      <div style={{fontSize:'0.8rem', color:'#666'}}>Cuotas, Envío, Banco</div>
+                      <strong>Cucardas Automáticas</strong>
+                      <div style={{fontSize:'0.8rem', color:'#666'}}>Cuotas y Envío Gratis</div>
                    </div>
-                   <CreditCard size={18} color="#666" />
+                   <Layers size={18} color="#666" />
               </div>
 
+              {/* Option 2: Price */}
               <div style={styles.badgeOption}>
                    <input type="checkbox" checked={showPrice} onChange={e => setShowPrice(e.target.checked)} />
                    <div style={{flex:1}}>
@@ -697,33 +686,38 @@ function App() {
                    <ShoppingBag size={18} color="#666" />
               </div>
 
-              <div style={{ marginTop: '1rem' }}>
-                 <label style={styles.label}>Texto Promoción Banco</label>
-                 <input 
-                    type="text" 
-                    value={customBankText} 
-                    onChange={e => setCustomBankText(e.target.value)}
-                    style={styles.input}
-                    placeholder="Ej: 10% OFF 1 PAGO"
-                 />
-                 <div style={{fontSize:'0.75rem', color:'#888'}}>
-                   Aparece en la cucarda azul superior izquierda.
-                 </div>
+              {/* Option 3: Bank Badge (Selectable) */}
+              <div style={styles.badgeOption}>
+                   <input type="checkbox" checked={showBankBadge} onChange={e => setShowBankBadge(e.target.checked)} />
+                   <div style={{flex:1}}>
+                      <strong>Promoción Banco</strong>
+                      <div style={{fontSize:'0.8rem', color:'#666'}}>10% OFF 1 PAGO DÉBITO</div>
+                   </div>
+                   <Tag size={18} color="#666" />
               </div>
 
               <div style={{ marginTop: '1rem', borderTop: '1px dashed #ccc', paddingTop: '1rem' }}>
-                 <label style={styles.label}>Logo del Header (Adjunto)</label>
-                 <div style={{display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '4px'}}>
-                    <Upload size={16} color={COLORS.pardoBlue} />
+                 <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                    <label style={{...styles.label, marginBottom:0}}>Marco/Overlay</label>
+                    <button 
+                        onClick={restoreDefaultOverlay} 
+                        style={{border:'none', background:'none', color:COLORS.pardoBlue, cursor:'pointer', fontSize:'0.75rem', display:'flex', alignItems:'center', gap:'3px'}}
+                        title="Restaurar marco original"
+                    >
+                        <RotateCcw size={12}/> Restaurar Original
+                    </button>
+                 </div>
+                 <div style={{display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '4px', marginTop:'5px'}}>
+                    <FileImage size={16} color={COLORS.pardoBlue} />
                     <input 
                         type="file" 
-                        accept="image/*"
-                        onChange={handleLogoUpload}
+                        accept="image/png"
+                        onChange={handleOverlayUpload}
                         style={styles.fileInput}
                     />
                  </div>
                  <div style={{fontSize:'0.75rem', color:'#666', marginTop:'5px'}}>
-                   Sube tu logo (fondo transparente/blanco) para reemplazar el texto.
+                   PNG transparente 1000x1000px.
                  </div>
               </div>
             </div>
