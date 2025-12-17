@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Download, Play, Layers, Image as ImageIcon, RefreshCw, Settings, Search, AlertCircle, AlertTriangle, CreditCard, ShoppingBag, Upload, FileImage, Tag, RotateCcw } from 'lucide-react';
+import { Download, Play, Layers, Image as ImageIcon, RefreshCw, Settings, Search, AlertCircle, AlertTriangle, CreditCard, ShoppingBag, Upload, FileImage, Tag } from 'lucide-react';
 
 // --- Types ---
 
@@ -326,10 +326,6 @@ function App() {
       };
       reader.readAsDataURL(file);
     }
-  };
-
-  const restoreDefaultOverlay = () => {
-    setCustomOverlay(DEFAULT_OVERLAY);
   };
 
   // --- Image Generation Logic ---
@@ -699,13 +695,6 @@ function App() {
               <div style={{ marginTop: '1rem', borderTop: '1px dashed #ccc', paddingTop: '1rem' }}>
                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                     <label style={{...styles.label, marginBottom:0}}>Marco/Overlay</label>
-                    <button 
-                        onClick={restoreDefaultOverlay} 
-                        style={{border:'none', background:'none', color:COLORS.pardoBlue, cursor:'pointer', fontSize:'0.75rem', display:'flex', alignItems:'center', gap:'3px'}}
-                        title="Restaurar marco original"
-                    >
-                        <RotateCcw size={12}/> Restaurar Original
-                    </button>
                  </div>
                  <div style={{display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: '#f0f9ff', padding: '10px', borderRadius: '4px', marginTop:'5px'}}>
                     <FileImage size={16} color={COLORS.pardoBlue} />
